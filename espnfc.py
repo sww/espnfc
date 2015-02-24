@@ -75,7 +75,7 @@ ESPN_LEAGUE_NAMES = {
 }
 
 
-class Match(object):
+class Fixture(object):
 
     def __init__(self,
                  teams=None,
@@ -108,7 +108,7 @@ class Match(object):
             return self._game_time
 
     def pretty(self):
-        """Returns a pretty match stats string."""
+        """Returns a pretty fixture stats string."""
         return '%s - %s vs %s, %s - %s, %s' % (
             self.league,
             self.teams[0].name,
@@ -118,7 +118,7 @@ class Match(object):
             self._game_time)
 
     def __repr__(self):
-        return '<Match %s vs %s>' % (
+        return '<Fixture %s vs %s>' % (
             repr(self.teams[0].name).decode('utf-8'),
             repr(self.teams[1].name).decode('utf-8'),)
 
@@ -146,7 +146,7 @@ class ESPNFC(object):
         # TODO: Handle requests that failed.
         return response.json()
 
-    def get_matches(self, league=None, day=None):
+    def get_fixtures(self, league=None, day=None):
         if league is not None and league not in ESPN_LEAGUES_IDS:
             raise Exception('Could not find the league id.')
 
@@ -164,10 +164,10 @@ class ESPNFC(object):
             if soup is None:
                 return []
 
-        return self._parse_matches(soup)
+        return self._parse_fixtures(soup)
 
-    def _parse_matches(self, soup):
-        matches = []
+    def _parse_fixtures(self, soup):
+        fixtures = []
         for league_div in soup.find_all('div',
                                         attrs={'class': 'score-league'}):
             league_id = None
@@ -177,37 +177,37 @@ class ESPNFC(object):
             # Unknown means don't care.
             league = ESPN_LEAGUE_NAMES.get(league_id, 'Unknown')
 
-            for match_div in league_div.find_all(
+            for fixture_div in league_div.find_all(
                     'div',
                     attrs={'class': 'score full'}):
-                if 'data-gameid' not in match_div.attrs:
+                if 'data-gameid' not in fixture_div.attrs:
                     continue
 
                 teams = []
-                for team in match_div.find_all('div',
-                                               attrs={'class': 'team-name'}):
+                for team in fixture_div.find_all('div',
+                                                 attrs={'class': 'team-name'}):
                     teams.append(Club(unicode(team.text)))
 
                 scores = []
                 winner = None
                 for i, score in enumerate(
-                        match_div.find_all('div',
-                                           attrs={'class': 'team-score'})):
+                        fixture_div.find_all('div',
+                                             attrs={'class': 'team-score'})):
                     scores.append(int(score.text) if score.text else 0)
                     if 'winner' in score.attrs.get('class'):
                         winner = i
 
                 # Time left, start time, or 'FT'.
-                game_time = match_div.find('div',
-                                           attrs={'class': 'game-info'})
+                game_time = fixture_div.find('div',
+                                             attrs={'class': 'game-info'})
                 game_time = game_time.text
 
-                game_link = match_div.find('a',
-                                           attrs={'class': 'primary-link'})
+                game_link = fixture_div.find('a',
+                                             attrs={'class': 'primary-link'})
                 game_link = game_link.get('href')
 
-                matches.append(
-                    Match(
+                fixtures.append(
+                    Fixture(
                         teams=teams,
                         scores=scores,
                         league=league,
@@ -215,7 +215,7 @@ class ESPNFC(object):
                         game_time=game_time,
                         game_link=game_link))
 
-        return matches
+        return fixtures
 
 
 if __name__ == '__main__':
@@ -225,18 +225,18 @@ if __name__ == '__main__':
 
     parser.add_argument('-l', '--league', dest='league', action='store',
                         choices=ESPN_LEAGUES_IDS.keys(), default=None,
-                        help='Show matches for a league.')
+                        help='Show fixtures for a league.')
     parser.add_argument('day', action='store', nargs='?',
                         default=date.today().strftime('%Y%m%d'),
-                        help='Show matches for a certain day.')
+                        help='Show fixtures for a certain day.')
 
     args = parser.parse_args()
 
     espnfc = ESPNFC()
-    matches = espnfc.get_matches(league=args.league, day=args.day)
+    fixtures = espnfc.get_fixtures(league=args.league, day=args.day)
 
-    if not matches:
-        sys.exit('No matches')
+    if not fixtures:
+        sys.exit('No fixtures')
 
-    for i in matches:
+    for i in fixtures:
         print i.pretty()
